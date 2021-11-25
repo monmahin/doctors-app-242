@@ -6,7 +6,7 @@ const { MongoClient } = require('mongodb');
 const admin = require("firebase-admin");
 const ObjectId = require('mongodb').ObjectId;
 const stripe = require("stripe")(process.env.STRIPE_SECRET);
-
+const fileUpload = require('express-fileupload');
 const port = process.env.PORT || 5000;
 
 //
@@ -19,8 +19,8 @@ admin.initializeApp({
 
 
 app.use(cors());
-app.use(express.json())
-
+app.use(express.json());
+app.use(fileUpload());
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.cmtxx.mongodb.net/myFirstDatabase?retryWrites=true&w=majority`;
 
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
@@ -48,6 +48,7 @@ async function run() {
         const database = client.db('doctors_portal');
         const appointmentsCollection = database.collection('appointments');
     const usersCollection = database.collection('users');
+    const doctorsCollection = database.collection('doctors');
 
 //get appointment data from mongodb
         app.get('/appointments',verifyToken, async (req, res) => {
@@ -83,6 +84,26 @@ async function run() {
             const updateDoc = { $set: { payment: payment } };
             const result = await appointmentsCollection.updateOne(filter, updateDoc);
             res.json(result);
+        })
+        //get doctor
+        app.get('/doctors', async (req, res) => {
+            const cursor = doctorsCollection.find({});
+            const doctors = await cursor.toArray();
+            res.json(doctors);
+        })
+        //post doctors
+        app.post('/doctors', async (req, res) => {
+            const name=req.body.name
+            const email = req.body.email
+            const pic = req.files.image.data;
+            // const picData=pic.data
+            const encodedpic = pic.toString('base64')
+            const imageBufffer = Buffer.from(encodedpic, 'base64')
+            const doctor = {
+                name,email,image:imageBufffer
+            }
+            const result=await doctorsCollection.insertOne(doctor)
+            res.json(result)
         })
 //find user from user
         app.get('/users/:email', async (req, res) => {
