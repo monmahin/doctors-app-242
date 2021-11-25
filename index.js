@@ -4,6 +4,8 @@ const cors = require('cors');
 require('dotenv').config();
 const { MongoClient } = require('mongodb');
 const admin = require("firebase-admin");
+const ObjectId = require('mongodb').ObjectId;
+const stripe = require("stripe")(process.env.STRIPE_SECRET);
 
 const port = process.env.PORT || 5000;
 
@@ -58,7 +60,13 @@ async function run() {
             const appointments = await cursor.toArray();
             res.json(appointments);
         })
-
+//get objectId
+        app.get('/appointments/:id', async (req, res) => {
+       const id = req.params.id;
+       const query={_id:ObjectId(id)}
+       const result= await appointmentsCollection.findOne(query);
+       res.json(result);
+        })
 //post appointment collection to mongodb
         app.post('/appointments', async (req, res) => {
             const appointment = req.body;
@@ -66,6 +74,16 @@ async function run() {
             // console.log(result);
             res.json(result)
         });
+
+        //update client intent
+        app.put('/appointments/:id', async (req, res) => {
+            const id = req.params.id;
+            const payment = req.body;
+            const filter = { _id: ObjectId(id) }
+            const updateDoc = { $set: { payment: payment } };
+            const result = await appointmentsCollection.updateOne(filter, updateDoc);
+            res.json(result);
+        })
 //find user from user
         app.get('/users/:email', async (req, res) => {
             const email = req.params.email;
@@ -113,6 +131,18 @@ async function run() {
 
            
         });
+        app.post('/create-payment-intent', async (req, res) => {
+            const paymentInfo = req.body;
+            amount=paymentInfo.price * 100;
+            const paymentIntent = await stripe.paymentIntents.create({
+                currency: 'usd',
+                amount: amount,
+              payment_method_types:['card']
+            })
+            res.json({
+                clientSecret: paymentIntent.client_secret,
+              })
+        })
 
     } finally {
         // await client.close();
